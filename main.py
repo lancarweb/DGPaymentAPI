@@ -8,7 +8,7 @@ app = FastAPI(
 	title="DGPaymentAPI",
 	description=desc,
 	version="1.0",
-	terms_of_service="https://dgpaytech.com",
+	terms_of_service="https://dgpaytech.com/terms",
 	contact={
 		"name": "DGPaymentAPI Token",
 		"url": "https://dgpaytech.com",
