@@ -5,6 +5,9 @@ from web3.middleware import geth_poa_middleware
 
 # FastAPI
 from fastapi import FastAPI
+from pydantic import BaseModel
+
+import requests
 
 # load .env
 import os
@@ -14,6 +17,9 @@ load_dotenv()
 # profiders
 infura_url = "https://mainnet.infura.io/v3/06b3b50902f34272b0c1a09a08a71f18" # dgp
 web3 = Web3(Web3.HTTPProvider(infura_url))
+
+# connection
+print("Connection provider : %s" % web3.isConnected())
 
 # contract ABI DGP
 abi = json.loads(os.getenv("ABI"))
@@ -27,6 +33,30 @@ contract = web3.eth.contract(address=address, abi=abi)
 desc = """
 This API reference includes all technical documentation developers need to integrate third-party applications and platforms.
 """
+
+# field_check_address
+class Address(BaseModel):
+	address: str
+
+# field_check_tx_hash
+class Txhash(BaseModel):
+	tx_hash: str
+
+# field_transfer
+class Transfer(BaseModel):
+	address_from: str
+	address_to: str
+	value: str
+	private_key: str
+	
+# price-conversion
+class Priceconversion(BaseModel):
+	currency: str
+	amount: str
+
+# create-account
+class CreateAccount(BaseModel):
+	crypt_security: str
 
 app = FastAPI(
 	title="DGPaymentAPI",
@@ -62,32 +92,82 @@ async def dgp_api():
 		"symbol": contract.functions.symbol().call()
 	}
 
-@app.get("/api/dgp/v1/balance")
-async def dgp_balance():
+@app.post("/api/dgp/v1/balance")
+async def dgp_balance(addrs: Address):
+	balance = contract.functions.balanceOf(Web3.toChecksumAddress(addrs.address)).call()
+	balance_from_wei = web3.fromWei(balance, 'ether')
 	return {
-		"response": True
+		"balance": balance_from_wei
 	}
 
-@app.get("/api/dgp/v1/receipt")
-async def dgp_receipt():
+@app.post("/api/dgp/v1/receipt")
+async def dgp_receipt(tx: Txhash):
+	receipt = web3.eth.get_transaction_receipt(tx.tx_hash)
+	# print(web3.eth.getTransaction(tx.tx_hash))
+	txhash_json_value = json.loads(Web3.toJSON(receipt))
 	return {
-		"response": True
+		"transaction_details": txhash_json_value
 	}
 
-@app.get("/api/dgp/v1/transfer")
-async def dgp_transfer():
+@app.post("/api/dgp/v1/transfer")
+async def dgp_transfer(trf: Transfer):
+	addr_from = trf.address_from
+	addr_to = trf.address_to
+	value = trf.value
+	pkey = trf.private_key
+	
+	transaction = contract.functions.transfer(str(addr_to), web3.toWei(str(value), 'ether')).buildTransaction({
+		'chainId': web3.eth.chain_id,
+		'gas': 70000,
+		'gasPrice': web3.eth.gas_price,
+		# 'gasPrice': web3.toWei('40', 'gwei'),
+		# 'gasPrice': web3.eth.max_priority_fee,
+		'nonce': web3.eth.getTransactionCount(str(addr_from)) #my.account
+	})
+
+	signed_txn = web3.eth.account.signTransaction(transaction, str(pkey)) #private.key
+	txn_hash = web3.eth.sendRawTransaction(signed_txn.rawTransaction)
+	txn_to_hex = web3.toHex(txn_hash)	
+
 	return {
-		"response": True
+		"txn_hash_status": txn_to_hex
 	}
 
-@app.get("/api/dgp/v1/price-conversion")
-async def dgp_price_conversion():
-	return {
-		"response": True
-	}
+@app.post("/api/dgp/v1/price-conversion")
+async def dgp_price_conversion(conv: Priceconversion):	
+	currency = conv.currency
+	amount = conv.amount
+		
+	s = requests.session()
+	
+	if 'idr' == currency:
+		data = s.get('https://api.coinmarketcap.com/data-api/v3/tools/price-conversion?amount=1&convert_id=2794&id=7864')
+		data_ = data.json()['data']['quote'][0]['price']
+		data__ = data_ * int(amount)
+		
+		return {
+			"currency": "IDR",
+			"result": str(data__)
+		}
 
-@app.get("/api/dgp/v1/wallet")
-async def wallet():
+	elif 'usd' == currency:
+		data = s.get('https://api.coinmarketcap.com/data-api/v3/tools/price-conversion?amount=1&convert_id=2781&id=7864')
+		data_ = data.json()['data']['quote'][0]['price']
+		data__ = data_ * int(amount)
+		
+		return {
+			"currency": 'USD',
+			"result": str(data__)
+		}
+	
+	else:
+		return {"message": "currency_error"}
+
+@app.post("/api/dgp/v1/create")
+async def create(sc: CreateAccount):
+	account = web3.eth.account.create(sc.crypt_security)
+	
 	return {
-		"response": True
+		"address": account._address,
+		"private_key": account._private_key.hex()
 	}
