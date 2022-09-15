@@ -34,6 +34,38 @@ desc = """
 This API reference includes all technical documentation developers need to integrate third-party applications and platforms.
 """
 
+tags_metadata = [
+			{
+			"name": "root",
+			"description": "Root response"
+
+		},
+			{
+			"name": "info",
+			"description": "This operation is used to get DGP info Totalsupply, Name, Symbol"
+		},
+			{
+			"name": "balance",
+			"description": "This operation is used to get DGP Balance from Address or Token"
+		},
+			{
+			"name": "receipt",
+			"description": "This operation is used to get receipt information from Transaction Hash"
+		},
+			{
+			"name": "transfer",
+			"description": "This operation is used to send funds. between a dgp token to another dgp token."
+		},
+			{
+			"name": "conversion",
+			"description": "This operation is used to convert dgp to other currencies, currently only USD and IDR are supported."
+		},
+			{
+			"name": "create",
+			"description": "This operation is used to create a wallet. with easy steps just send random word."
+		}
+	]
+
 # field_check_address
 class Address(BaseModel):
 	address: str
@@ -73,16 +105,17 @@ app = FastAPI(
 		"url": "https://api.dgpaytech.com"
 	},
 	docs_url="/documentation",
-	redoc_url=None
+	redoc_url=None,
+	openapi_tags=tags_metadata
 	)
 
-@app.get("/")
+@app.get("/", tags=["root"])
 async def root():
 	return {
 		"response": True
 	}
 
-@app.get("/api/dgp")
+@app.get("/api/dgp", tags=["info"])
 async def dgp_api():
 	totalSupply = contract.functions.totalSupply().call()
 
@@ -92,7 +125,7 @@ async def dgp_api():
 		"symbol": contract.functions.symbol().call()
 	}
 
-@app.post("/api/dgp/v1/balance")
+@app.post("/api/dgp/v1/balance", tags=["balance"])
 async def dgp_balance(addrs: Address):
 	balance = contract.functions.balanceOf(Web3.toChecksumAddress(addrs.address)).call()
 	balance_from_wei = web3.fromWei(balance, 'ether')
@@ -100,7 +133,7 @@ async def dgp_balance(addrs: Address):
 		"balance": balance_from_wei
 	}
 
-@app.post("/api/dgp/v1/receipt")
+@app.post("/api/dgp/v1/receipt", tags=["receipt"])
 async def dgp_receipt(tx: Txhash):
 	receipt = web3.eth.get_transaction_receipt(tx.tx_hash)
 	# print(web3.eth.getTransaction(tx.tx_hash))
@@ -109,7 +142,7 @@ async def dgp_receipt(tx: Txhash):
 		"transaction_details": txhash_json_value
 	}
 
-@app.post("/api/dgp/v1/transfer")
+@app.post("/api/dgp/v1/transfer", tags=["transfer"])
 async def dgp_transfer(trf: Transfer):
 	addr_from = trf.address_from
 	addr_to = trf.address_to
@@ -133,7 +166,7 @@ async def dgp_transfer(trf: Transfer):
 		"txn_hash_status": txn_to_hex
 	}
 
-@app.post("/api/dgp/v1/price-conversion")
+@app.post("/api/dgp/v1/price-conversion", tags=["conversion"])
 async def dgp_price_conversion(conv: Priceconversion):	
 	currency = conv.currency
 	amount = conv.amount
@@ -163,7 +196,7 @@ async def dgp_price_conversion(conv: Priceconversion):
 	else:
 		return {"message": "currency_error"}
 
-@app.post("/api/dgp/v1/create")
+@app.post("/api/dgp/v1/create", tags=["create"])
 async def create(sc: CreateAccount):
 	account = web3.eth.account.create(sc.crypt_security)
 	
